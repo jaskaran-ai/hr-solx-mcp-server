@@ -6,12 +6,37 @@ This project is a **Model Context Protocol (MCP) server** that acts as a bridge 
 
 ## System Architecture
 
-```
-┌─────────────┐         ┌──────────────────┐         ┌─────────────────────┐
-│  AI Client  │ ─POST─▶ │  Express Server  │ ─fetch─▶ │  Upstream HR API    │
-│  (Claude,   │  /mcp   │  (MCP Protocol)  │         │  api.hr-solx.com    │
-│   GPT, etc) │ ◀────── │                  │ ◀────── │                     │
-└─────────────┘   SSE   └──────────────────┘   JSON  └─────────────────────┘
+```mermaid
+graph LR
+    AI["AI Client\n(Claude, GPT, etc)"] -->|"POST /mcp\nJSON-RPC 2.0"| Express["Express Server\n(Port 4000)"]
+    Express -->|"fetch"| API["HR API\napi.hr-solx-mobile.com"]
+    API -->|"JSON Response"| Express
+    Express -->|"SSE Stream"| AI
+
+    subgraph "Server Middleware"
+        RateLimit["Rate Limiter\nIP-based"]
+        Auth["Auth Middleware\nX-API-Key"]
+        Express
+    end
+
+    subgraph "MCP Components"
+        Tools["Tool Registry\n12 tools"]
+        Resources["Resources\necho://"]
+        Prompts["Prompts\necho template"]
+    end
+
+    Express --> Tools
+    Express --> Resources
+    Express --> Prompts
+
+    classDef ai fill:#e1f5fe,stroke:#01579b
+    classDef server fill:#fff3e0,stroke:#e65100
+    classDef api fill:#e8f5e9,stroke:#2e7d32
+    classDef mcp fill:#f3e5f5,stroke:#6a1b9a
+    class AI ai
+    class Express,RateLimit,Auth server
+    class API api
+    class Tools,Resources,Prompts mcp
 ```
 
 ## Components
@@ -46,17 +71,56 @@ This project is a **Model Context Protocol (MCP) server** that acts as a bridge 
 - **Authentication** (`auth.ts`) — API key validation via `X-API-Key` header
 - **Rate Limiting** (`rate-limit.ts`) — IP-based throttling with configurable limits
 
+## Middleware Chain
+
+```mermaid
+graph LR
+    Request["HTTP Request"] --> RateLimit["Rate Limit\nCheck IP count"]
+    RateLimit -->|Allowed| Auth["Auth Check\nX-API-Key"]
+    RateLimit -->|Exceeded| 429["429 Too Many Requests"]
+    Auth -->|Valid| Handler["MCP Handler"]
+    Auth -->|Invalid| 401["401 Unauthorized"]
+    Auth -->|Not Set| Handler
+    Handler --> Response["SSE Response"]
+
+    classDef req fill:#e1f5fe,stroke:#01579b
+    classDef middleware fill:#fff3e0,stroke:#e65100
+    classDef error fill:#ffebee,stroke:#c62828
+    classDef success fill:#e8f5e9,stroke:#2e7d32
+    class Request req
+    class RateLimit,Auth,Handler middleware
+    class 429,401 error
+    class Response success
+```
+
 ## Data Flow
 
-1. AI client sends JSON-RPC 2.0 POST to `/mcp`
-2. Express parses JSON body
-3. Rate limiting middleware checks request count
-4. Authentication middleware validates API key (if configured)
-5. New `StreamableHTTPServerTransport` created per request
-6. MCP server routes to appropriate tool handler
-7. Tool calls upstream API via `makeAPIRequest()`
-8. Response formatted as MCP content array
-9. Transport streams SSE response back to client
+```mermaid
+sequenceDiagram
+    participant AI as AI Client
+    participant Express as Express Server
+    participant RateLimit as Rate Limiter
+    participant Auth as Auth Middleware
+    participant MCP as MCP Server
+    participant Tool as Tool Handler
+    participant APIClient as API Client
+    participant HR as HR API
+
+    AI->>Express: POST /mcp (JSON-RPC 2.0)
+    Express->>RateLimit: Check IP rate
+    RateLimit-->>Express: Allowed
+    Express->>Auth: Validate X-API-Key
+    Auth-->>Express: Valid
+    Express->>MCP: Connect transport
+    MCP->>Tool: Route to tool handler
+    Tool->>APIClient: makeAPIRequest()
+    APIClient->>HR: GET /users
+    HR-->>APIClient: JSON response
+    APIClient-->>Tool: Typed data
+    Tool-->>MCP: Content array
+    MCP-->>Express: SSE stream
+    Express-->>AI: JSON-RPC response
+```
 
 ## Key Design Decisions
 
@@ -83,17 +147,27 @@ sessionIdGenerator: undefined
 
 ### Docker Architecture
 
-**Multi-stage build:**
-```
-Stage 1 (build): node:20-alpine
-  - Install all dependencies (including ts-node)
-  - Compile TypeScript with tsc → dist/
+```mermaid
+graph TD
+    subgraph "Stage 1: Build"
+        B1["node:20-alpine"] --> B2["npm ci\n(all deps)"]
+        B2 --> B3["Copy src/ + tsconfig.json"]
+        B3 --> B4["tsc --outDir dist"]
+    end
 
-Stage 2 (production): node:20-alpine
-  - Install production dependencies only
-  - Copy compiled dist/ from build stage
-  - Run as non-root user (nodejs:1001)
-  - Health check via wget every 30s
+    subgraph "Stage 2: Production"
+        P1["node:20-alpine"] --> P2["npm ci --omit=dev"]
+        P2 --> P3["Copy dist/ from build"]
+        P3 --> P4["Add non-root user"]
+        P4 --> P5["EXPOSE 4000 + HEALTHCHECK"]
+    end
+
+    B4 -.->|Copy dist/| P3
+
+    classDef build fill:#e3f2fd,stroke:#1565c0
+    classDef prod fill:#e8f5e9,stroke:#2e7d32
+    class B1,B2,B3,B4 build
+    class P1,P2,P3,P4,P5 prod
 ```
 
 **Production image features:**
@@ -110,14 +184,29 @@ Stage 2 (production): node:20-alpine
 
 ### Container Orchestration
 
-```
-docker-compose.yml (Production)          docker-compose.dev.yml (Development)
-├── Build target: production             ├── Build target: build
-├── Port: 4000:4000                      ├── Port: 4000:4000
-├── Env file: .env                       ├── Volumes: ./src:/app/src
-├── Restart: unless-stopped              ├── NODE_ENV=development
-├── Health check                         └── Command: nodemon --watch src
-└── Network: mcp-network
+```mermaid
+graph LR
+    subgraph "docker-compose.yml (Production)"
+        P1["Build target: production"]
+        P2["Port: 4000:4000"]
+        P3["Env file: .env"]
+        P4["Restart: unless-stopped"]
+        P5["Health check"]
+        P6["Network: mcp-network"]
+    end
+
+    subgraph "docker-compose.dev.yml (Development)"
+        D1["Build target: build"]
+        D2["Port: 4000:4000"]
+        D3["Volume: ./src:/app/src"]
+        D4["NODE_ENV=development"]
+        D5["Command: nodemon --watch src"]
+    end
+
+    classDef prod fill:#e8f5e9,stroke:#2e7d32
+    classDef dev fill:#fff3e0,stroke:#e65100
+    class P1,P2,P3,P4,P5,P6 prod
+    class D1,D2,D3,D4,D5 dev
 ```
 
 ## Configuration

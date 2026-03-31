@@ -95,6 +95,22 @@ mcp-server/
 
 ## Adding a New Tool
 
+```mermaid
+graph TD
+    A["1. Define Interface\nsrc/types/api.ts"] --> B["2. Register Tool\nsrc/tools/*.ts"]
+    B --> C{"New module?"}
+    C -->|"Yes"| D["3a. Create module\nsrc/tools/new-module.ts"]
+    C -->|"No"| E["3b. Add to existing module"]
+    D --> F["4. Import in index.ts\nimport + register"]
+    E --> F
+    F --> G["5. Test\ncurl or test client"]
+
+    classDef step fill:#e3f2fd,stroke:#1565c0
+    classDef decision fill:#fff3e0,stroke:#e65100
+    class A,B,D,E,F,G step
+    class C decision
+```
+
 ### Step 1: Define TypeScript Interface
 
 Add interface to `src/types/api.ts`:

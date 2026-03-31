@@ -4,70 +4,22 @@ This document traces the complete lifecycle of an MCP request through the server
 
 ## High-Level Flow
 
-```
-AI Client
-    │
-    ▼
-┌─────────────────────────────────────────┐
-│ 1. HTTP POST to /mcp                    │
-│    - Content-Type: application/json     │
-│    - Accept: application/json, text/    │
-│      event-stream                       │
-│    - Body: JSON-RPC 2.0 request         │
-└─────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────┐
-│ 2. Express Middleware                   │
-│    - express.json() parses body         │
-│    - Route handler receives request     │
-└─────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────┐
-│ 3. Request Logging                      │
-│    - console.log with full body         │
-│    - DEBUG=mcp:* enabled                │
-└─────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────┐
-│ 4. Transport Creation                   │
-│    - New StreamableHTTPServerTransport  │
-│    - Stateless mode (no session ID)     │
-│    - Close handler registered           │
-└─────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────┐
-│ 5. MCP Server Connection                │
-│    - server.connect(transport)          │
-│    - Routes to appropriate handler      │
-└─────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────┐
-│ 6. Tool Execution                       │
-│    - Validates params with Zod          │
-│    - Calls makeAPIRequest()             │
-│    - Formats response                   │
-└─────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────┐
-│ 7. Response via SSE                     │
-│    - Server-Sent Events stream          │
-│    - JSON-RPC 2.0 response format       │
-│    - Content array with results         │
-└─────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────┐
-│ 8. Cleanup                              │
-│    - Client disconnects                 │
-│    - res.on('close') fires              │
-│    - transport.close() called           │
-└─────────────────────────────────────────┘
+```mermaid
+graph TD
+    A["AI Client"] -->|"1. POST /mcp\nContent-Type: application/json\nAccept: text/event-stream"| B["Express Middleware\nexpress.json() parses body"]
+    B -->|"2. Rate Limit Check\nIP-based counter"| C["Auth Middleware\nX-API-Key validation"]
+    C -->|"3. Transport Creation\nStreamableHTTPServerTransport"| D["MCP Server\nRoutes to tool handler"]
+    D -->|"4. Tool Execution\nZod validation + API call"| E["Response via SSE\nJSON-RPC 2.0 format"]
+    E -->|"5. Client disconnects\ntransport.close()"| F["Cleanup"]
+
+    classDef client fill:#e1f5fe,stroke:#01579b
+    classDef middleware fill:#fff3e0,stroke:#e65100
+    classDef server fill:#e3f2fd,stroke:#1565c0
+    classDef response fill:#e8f5e9,stroke:#2e7d32
+    class A client
+    class B,C middleware
+    class D server
+    class E,F response
 ```
 
 ## Detailed Step-by-Step
@@ -222,6 +174,31 @@ res.on('close', () => {
 Transport resources are released.
 
 ## Error Flow
+
+```mermaid
+graph TD
+    A["Error Occurs"] --> B{"Error Type?"}
+    B -->|"API Error"| C["APIError\nStatus code + endpoint"]
+    B -->|"Network Error"| D["NetworkError\nOriginal error preserved"]
+    B -->|"Tool Error"| E["ToolError\nTool name + context"]
+    B -->|"Other"| F["Generic error"]
+
+    C --> G["Log with context"]
+    D --> G
+    E --> G
+    F --> G
+
+    G --> H["Return null from makeAPIRequest"]
+    H --> I["Tool returns error message\nformatToolError() helper"]
+    I --> J["SSE response with error"]
+
+    classDef error fill:#ffebee,stroke:#c62828
+    classDef log fill:#fff3e0,stroke:#e65100
+    classDef response fill:#e8f5e9,stroke:#2e7d32
+    class A,B,C,D,E,F error
+    class G,H log
+    class I,J response
+```
 
 If an error occurs at any step:
 
