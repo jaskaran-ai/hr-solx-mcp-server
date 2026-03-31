@@ -2,10 +2,9 @@ import express from "express";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
-// Import Express types correctly
 import type { Request, Response } from "express";
+import { authenticate } from "./middleware/auth.js";
 
-// Enable debug logging to see what's happening
 process.env.DEBUG = "mcp:*";
 
 const app = express();
@@ -16,7 +15,6 @@ const server = new McpServer({
   version: "1.0.0"
 });
 
-// Register our capabilities
 server.resource(
   "echo",
   new ResourceTemplate("echo://{message}", { list: undefined }),
@@ -50,9 +48,8 @@ server.prompt(
   })
 );
 
-app.post('/mcp', async (req: Request, res: Response) => {
+app.post('/mcp', authenticate, async (req: Request, res: Response) => {
   try {
-    // Log incoming request for debugging
     console.log('Received request:', JSON.stringify(req.body, null, 2));
     
     const transport = new StreamableHTTPServerTransport({
@@ -105,20 +102,22 @@ app.delete('/mcp', async (req: Request, res: Response) => {
   }));
 });
 
-// Start the server
 const PORT = process.env.MCP_SERVER_PORT || 4000;
 app.listen(PORT, () => {
   console.log(`MCP Stateless Streamable HTTP Server listening on port ${PORT}`);
 });
 
-// Base URL for the API, can be overridden by the environment variable MCP_API_URL
 const API_URL = process.env.MCP_API_URL || "https://api.hr-solx-mobile.com";
 
-// Helper function for making API requests
 async function makeAPIRequest<T>(url: string, method: string = 'GET', body?: any): Promise<T | null> {
-  const headers = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
+
+  const apiToken = process.env.API_TOKEN;
+  if (apiToken) {
+    headers["Authorization"] = `Bearer ${apiToken}`;
+  }
 
   try {
     const response = await fetch(url, {
@@ -136,7 +135,6 @@ async function makeAPIRequest<T>(url: string, method: string = 'GET', body?: any
   }
 }
 
-// Interfaces for API responses
 interface HealthCheckResponse {
   status: string;
 }
@@ -189,7 +187,6 @@ interface CandidateProfile {
   skills: Skill[];
 }
 
-// Register health check tools
 // @ts-ignore
 server.tool(
   "basic-health-check",
@@ -347,5 +344,3 @@ server.tool(
     return { content: [{ type: "text", text: `User created: ${newUser.name}` }] };
   },
 );
-
-// Additional tools can be registered similarly...
