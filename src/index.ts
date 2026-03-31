@@ -2,10 +2,8 @@ import express from "express";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
-// Import Express types correctly
 import type { Request, Response } from "express";
 
-// Enable debug logging to see what's happening
 process.env.DEBUG = "mcp:*";
 
 const app = express();
@@ -16,7 +14,6 @@ const server = new McpServer({
   version: "1.0.0"
 });
 
-// Register our capabilities
 server.resource(
   "echo",
   new ResourceTemplate("echo://{message}", { list: undefined }),
@@ -52,7 +49,6 @@ server.prompt(
 
 app.post('/mcp', async (req: Request, res: Response) => {
   try {
-    // Log incoming request for debugging
     console.log('Received request:', JSON.stringify(req.body, null, 2));
     
     const transport = new StreamableHTTPServerTransport({
@@ -105,17 +101,14 @@ app.delete('/mcp', async (req: Request, res: Response) => {
   }));
 });
 
-// Start the server
 const PORT = process.env.MCP_SERVER_PORT || 4000;
 app.listen(PORT, () => {
   console.log(`MCP Stateless Streamable HTTP Server listening on port ${PORT}`);
 });
 
-// Base URL for the API, can be overridden by the environment variable MCP_API_URL
 const API_URL = process.env.MCP_API_URL || "https://api.hr-solx-mobile.com";
 
-// Helper function for making API requests
-async function makeAPIRequest<T>(url: string, method: string = 'GET', body?: any): Promise<T | null> {
+async function makeAPIRequest<T>(url: string, method: string = 'GET', body?: unknown): Promise<T | null> {
   const headers = {
     "Content-Type": "application/json",
   };
@@ -136,7 +129,6 @@ async function makeAPIRequest<T>(url: string, method: string = 'GET', body?: any
   }
 }
 
-// Interfaces for API responses
 interface HealthCheckResponse {
   status: string;
 }
@@ -189,8 +181,6 @@ interface CandidateProfile {
   skills: Skill[];
 }
 
-// Register health check tools
-// @ts-ignore
 server.tool(
   "basic-health-check",
   "Basic health check",
@@ -204,7 +194,6 @@ server.tool(
   },
 );
 
-// @ts-ignore
 server.tool(
   "detailed-health-check",
   "Comprehensive health check",
@@ -218,7 +207,6 @@ server.tool(
   },
 );
 
-// @ts-ignore
 server.tool(
   "get-countries",
   "Get countries list",
@@ -232,7 +220,6 @@ server.tool(
   },
 );
 
-// @ts-ignore
 server.tool(
   "get-states",
   "Get states list",
@@ -246,7 +233,6 @@ server.tool(
   },
 );
 
-// @ts-ignore
 server.tool(
   "get-cities",
   "Get cities list",
@@ -260,7 +246,6 @@ server.tool(
   },
 );
 
-// @ts-ignore
 server.tool(
   "get-skills",
   "Get skills list",
@@ -274,7 +259,6 @@ server.tool(
   },
 );
 
-// @ts-ignore
 server.tool(
   "get-languages",
   "Get languages list",
@@ -288,7 +272,6 @@ server.tool(
   },
 );
 
-// @ts-ignore
 server.tool(
   "get-working-statuses",
   "Get working statuses list",
@@ -302,7 +285,6 @@ server.tool(
   },
 );
 
-// @ts-ignore
 server.tool(
   "get-roles",
   "Get roles list",
@@ -316,7 +298,6 @@ server.tool(
   },
 );
 
-// @ts-ignore
 server.tool(
   "get-users",
   "List users",
@@ -330,7 +311,6 @@ server.tool(
   },
 );
 
-// @ts-ignore
 server.tool(
   "create-user",
   "Create user",
@@ -347,5 +327,3 @@ server.tool(
     return { content: [{ type: "text", text: `User created: ${newUser.name}` }] };
   },
 );
-
-// Additional tools can be registered similarly...
