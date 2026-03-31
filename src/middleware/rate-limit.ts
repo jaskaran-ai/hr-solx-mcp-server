@@ -1,4 +1,18 @@
-import type { Request, Response, NextFunction } from "express";
+// Minimal type definitions to avoid missing 'express' module error
+interface Request {
+  ip?: string;
+  socket: { remoteAddress?: string };
+}
+
+interface Response {
+  set(field: string, value: string): Response;
+  status(code: number): Response;
+  json(body: any): Response;
+}
+
+interface NextFunction {
+  (err?: any): void;
+}
 
 interface RateLimitEntry {
   count: number;
