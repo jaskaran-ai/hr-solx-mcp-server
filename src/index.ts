@@ -2,10 +2,9 @@ import express from "express";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
-// Import Express types correctly
 import type { Request, Response } from "express";
+import { APIError, NetworkError, ToolError } from "./types/errors.js";
 
-// Enable debug logging to see what's happening
 process.env.DEBUG = "mcp:*";
 
 const app = express();
@@ -16,7 +15,6 @@ const server = new McpServer({
   version: "1.0.0"
 });
 
-// Register our capabilities
 server.resource(
   "echo",
   new ResourceTemplate("echo://{message}", { list: undefined }),
@@ -52,7 +50,6 @@ server.prompt(
 
 app.post('/mcp', async (req: Request, res: Response) => {
   try {
-    // Log incoming request for debugging
     console.log('Received request:', JSON.stringify(req.body, null, 2));
     
     const transport = new StreamableHTTPServerTransport({
@@ -105,16 +102,13 @@ app.delete('/mcp', async (req: Request, res: Response) => {
   }));
 });
 
-// Start the server
 const PORT = process.env.MCP_SERVER_PORT || 4000;
 app.listen(PORT, () => {
   console.log(`MCP Stateless Streamable HTTP Server listening on port ${PORT}`);
 });
 
-// Base URL for the API, can be overridden by the environment variable MCP_API_URL
 const API_URL = process.env.MCP_API_URL || "https://api.hr-solx-mobile.com";
 
-// Helper function for making API requests
 async function makeAPIRequest<T>(url: string, method: string = 'GET', body?: any): Promise<T | null> {
   const headers = {
     "Content-Type": "application/json",
@@ -127,16 +121,38 @@ async function makeAPIRequest<T>(url: string, method: string = 'GET', body?: any
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new APIError(
+        `HTTP ${response.status}: ${response.statusText}`,
+        response.status,
+        url.replace(API_URL, ''),
+      );
     }
     return (await response.json()) as T;
   } catch (error) {
-    console.error("Error making API request:", error);
+    if (error instanceof APIError) {
+      console.error(`API Error [${error.statusCode}] ${error.endpoint}: ${error.message}`);
+    } else if (error instanceof NetworkError) {
+      console.error(`Network Error: ${error.message}`, error.originalError);
+    } else {
+      console.error("Error making API request:", error);
+    }
     return null;
   }
 }
 
-// Interfaces for API responses
+function formatToolError(toolName: string, error: unknown): string {
+  if (error instanceof APIError) {
+    return `Error in ${toolName}: ${error.message} (endpoint: ${error.endpoint})`;
+  }
+  if (error instanceof NetworkError) {
+    return `Error in ${toolName}: Network failure - ${error.message}`;
+  }
+  if (error instanceof ToolError) {
+    return `Error in ${toolName}: ${error.message}`;
+  }
+  return `Error in ${toolName}: An unexpected error occurred`;
+}
+
 interface HealthCheckResponse {
   status: string;
 }
@@ -189,18 +205,21 @@ interface CandidateProfile {
   skills: Skill[];
 }
 
-// Register health check tools
 // @ts-ignore
 server.tool(
   "basic-health-check",
   "Basic health check",
   {},
   async () => {
-    const healthData = await makeAPIRequest<HealthCheckResponse>(`${API_URL}/health`);
-    if (!healthData) {
-      return { content: [{ type: "text", text: "Failed to retrieve health status." }] };
+    try {
+      const healthData = await makeAPIRequest<HealthCheckResponse>(`${API_URL}/health`);
+      if (!healthData) {
+        return { content: [{ type: "text", text: "Failed to retrieve health status. The API may be unreachable." }] };
+      }
+      return { content: [{ type: "text", text: `API Status: ${healthData.status}` }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: formatToolError("basic-health-check", error) }] };
     }
-    return { content: [{ type: "text", text: `API Status: ${healthData.status}` }] };
   },
 );
 
@@ -210,11 +229,15 @@ server.tool(
   "Comprehensive health check",
   {},
   async () => {
-    const healthData = await makeAPIRequest<HealthCheckResponse>(`${API_URL}/health/detailed`);
-    if (!healthData) {
-      return { content: [{ type: "text", text: "Failed to retrieve detailed health status." }] };
+    try {
+      const healthData = await makeAPIRequest<HealthCheckResponse>(`${API_URL}/health/detailed`);
+      if (!healthData) {
+        return { content: [{ type: "text", text: "Failed to retrieve detailed health status. The API may be unreachable." }] };
+      }
+      return { content: [{ type: "text", text: `Detailed Health Status: ${JSON.stringify(healthData)}` }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: formatToolError("detailed-health-check", error) }] };
     }
-    return { content: [{ type: "text", text: `Detailed Health Status: ${JSON.stringify(healthData)}` }] };
   },
 );
 
@@ -224,11 +247,15 @@ server.tool(
   "Get countries list",
   {},
   async () => {
-    const countries = await makeAPIRequest<Country[]>(`${API_URL}/countries`);
-    if (!countries) {
-      return { content: [{ type: "text", text: "Failed to retrieve countries." }] };
+    try {
+      const countries = await makeAPIRequest<Country[]>(`${API_URL}/countries`);
+      if (!countries) {
+        return { content: [{ type: "text", text: "Failed to retrieve countries. The API may be unreachable." }] };
+      }
+      return { content: [{ type: "text", text: `Countries: ${countries.map(c => c.name).join(", ")}` }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: formatToolError("get-countries", error) }] };
     }
-    return { content: [{ type: "text", text: `Countries: ${countries.map(c => c.name).join(", ")}` }] };
   },
 );
 
@@ -238,11 +265,15 @@ server.tool(
   "Get states list",
   {},
   async () => {
-    const states = await makeAPIRequest<State[]>(`${API_URL}/states`);
-    if (!states) {
-      return { content: [{ type: "text", text: "Failed to retrieve states." }] };
+    try {
+      const states = await makeAPIRequest<State[]>(`${API_URL}/states`);
+      if (!states) {
+        return { content: [{ type: "text", text: "Failed to retrieve states. The API may be unreachable." }] };
+      }
+      return { content: [{ type: "text", text: `States: ${states.map(s => s.name).join(", ")}` }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: formatToolError("get-states", error) }] };
     }
-    return { content: [{ type: "text", text: `States: ${states.map(s => s.name).join(", ")}` }] };
   },
 );
 
@@ -252,11 +283,15 @@ server.tool(
   "Get cities list",
   {},
   async () => {
-    const cities = await makeAPIRequest<City[]>(`${API_URL}/cities`);
-    if (!cities) {
-      return { content: [{ type: "text", text: "Failed to retrieve cities." }] };
+    try {
+      const cities = await makeAPIRequest<City[]>(`${API_URL}/cities`);
+      if (!cities) {
+        return { content: [{ type: "text", text: "Failed to retrieve cities. The API may be unreachable." }] };
+      }
+      return { content: [{ type: "text", text: `Cities: ${cities.map(c => c.name).join(", ")}` }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: formatToolError("get-cities", error) }] };
     }
-    return { content: [{ type: "text", text: `Cities: ${cities.map(c => c.name).join(", ")}` }] };
   },
 );
 
@@ -266,11 +301,15 @@ server.tool(
   "Get skills list",
   {},
   async () => {
-    const skills = await makeAPIRequest<Skill[]>(`${API_URL}/skills`);
-    if (!skills) {
-      return { content: [{ type: "text", text: "Failed to retrieve skills." }] };
+    try {
+      const skills = await makeAPIRequest<Skill[]>(`${API_URL}/skills`);
+      if (!skills) {
+        return { content: [{ type: "text", text: "Failed to retrieve skills. The API may be unreachable." }] };
+      }
+      return { content: [{ type: "text", text: `Skills: ${skills.map(s => s.name).join(", ")}` }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: formatToolError("get-skills", error) }] };
     }
-    return { content: [{ type: "text", text: `Skills: ${skills.map(s => s.name).join(", ")}` }] };
   },
 );
 
@@ -280,11 +319,15 @@ server.tool(
   "Get languages list",
   {},
   async () => {
-    const languages = await makeAPIRequest<Language[]>(`${API_URL}/languages`);
-    if (!languages) {
-      return { content: [{ type: "text", text: "Failed to retrieve languages." }] };
+    try {
+      const languages = await makeAPIRequest<Language[]>(`${API_URL}/languages`);
+      if (!languages) {
+        return { content: [{ type: "text", text: "Failed to retrieve languages. The API may be unreachable." }] };
+      }
+      return { content: [{ type: "text", text: `Languages: ${languages.map(l => l.name).join(", ")}` }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: formatToolError("get-languages", error) }] };
     }
-    return { content: [{ type: "text", text: `Languages: ${languages.map(l => l.name).join(", ")}` }] };
   },
 );
 
@@ -294,11 +337,15 @@ server.tool(
   "Get working statuses list",
   {},
   async () => {
-    const workingStatuses = await makeAPIRequest<WorkingStatus[]>(`${API_URL}/working-statuses`);
-    if (!workingStatuses) {
-      return { content: [{ type: "text", text: "Failed to retrieve working statuses." }] };
+    try {
+      const workingStatuses = await makeAPIRequest<WorkingStatus[]>(`${API_URL}/working-statuses`);
+      if (!workingStatuses) {
+        return { content: [{ type: "text", text: "Failed to retrieve working statuses. The API may be unreachable." }] };
+      }
+      return { content: [{ type: "text", text: `Working Statuses: ${workingStatuses.map(ws => ws.name).join(", ")}` }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: formatToolError("get-working-statuses", error) }] };
     }
-    return { content: [{ type: "text", text: `Working Statuses: ${workingStatuses.map(ws => ws.name).join(", ")}` }] };
   },
 );
 
@@ -308,11 +355,15 @@ server.tool(
   "Get roles list",
   {},
   async () => {
-    const roles = await makeAPIRequest<Role[]>(`${API_URL}/roles`);
-    if (!roles) {
-      return { content: [{ type: "text", text: "Failed to retrieve roles." }] };
+    try {
+      const roles = await makeAPIRequest<Role[]>(`${API_URL}/roles`);
+      if (!roles) {
+        return { content: [{ type: "text", text: "Failed to retrieve roles. The API may be unreachable." }] };
+      }
+      return { content: [{ type: "text", text: `Roles: ${roles.map(r => r.name).join(", ")}` }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: formatToolError("get-roles", error) }] };
     }
-    return { content: [{ type: "text", text: `Roles: ${roles.map(r => r.name).join(", ")}` }] };
   },
 );
 
@@ -322,11 +373,15 @@ server.tool(
   "List users",
   {},
   async () => {
-    const users = await makeAPIRequest<User[]>(`${API_URL}/users`);
-    if (!users) {
-      return { content: [{ type: "text", text: "Failed to retrieve users." }] };
+    try {
+      const users = await makeAPIRequest<User[]>(`${API_URL}/users`);
+      if (!users) {
+        return { content: [{ type: "text", text: "Failed to retrieve users. The API may be unreachable." }] };
+      }
+      return { content: [{ type: "text", text: `Users: ${users.map(u => u.name).join(", ")}` }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: formatToolError("get-users", error) }] };
     }
-    return { content: [{ type: "text", text: `Users: ${users.map(u => u.name).join(", ")}` }] };
   },
 );
 
@@ -340,12 +395,14 @@ server.tool(
     mobile: z.string().describe("Mobile number of the user"),
   },
   async ({ name, email, mobile }) => {
-    const newUser = await makeAPIRequest<User>(`${API_URL}/users`, 'POST', { name, email, mobile });
-    if (!newUser) {
-      return { content: [{ type: "text", text: "Failed to create user." }] };
+    try {
+      const newUser = await makeAPIRequest<User>(`${API_URL}/users`, 'POST', { name, email, mobile });
+      if (!newUser) {
+        return { content: [{ type: "text", text: "Failed to create user. The API may be unreachable or the request was invalid." }] };
+      }
+      return { content: [{ type: "text", text: `User created: ${newUser.name}` }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: formatToolError("create-user", error) }] };
     }
-    return { content: [{ type: "text", text: `User created: ${newUser.name}` }] };
   },
 );
-
-// Additional tools can be registered similarly...
