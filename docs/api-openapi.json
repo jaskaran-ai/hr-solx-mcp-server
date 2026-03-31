@@ -1,0 +1,2512 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "HR-SolX Mobile API",
+    "description": "Comprehensive API documentation for HR-SolX mobile application including authentication, user management, candidate registration, and master data endpoints.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "HR-SolX Development Team",
+      "email": "dev@hrsolx.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.hrsolx.com/api",
+      "description": "Production Server"
+    },
+    {
+      "url": "http://localhost:8000/api",
+      "description": "Development Server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health Check"],
+        "summary": "Basic health check",
+        "description": "Simple ping endpoint to verify API is running",
+        "operationId": "basicHealthCheck",
+        "responses": {
+          "200": {
+            "description": "API is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/detailed": {
+      "get": {
+        "tags": ["Health Check"],
+        "summary": "Comprehensive health check",
+        "description": "Detailed health check including database, cache, storage, queue, and Redis status",
+        "operationId": "detailedHealthCheck",
+        "responses": {
+          "200": {
+            "description": "All systems healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailedHealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "One or more systems unhealthy"
+          }
+        }
+      }
+    },
+    "/health/database-stats": {
+      "get": {
+        "tags": ["Health Check"],
+        "summary": "Database statistics",
+        "description": "Get database table counts and statistics",
+        "operationId": "databaseStats",
+        "responses": {
+          "200": {
+            "description": "Database statistics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseStatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/system-info": {
+      "get": {
+        "tags": ["Health Check"],
+        "summary": "System information",
+        "description": "Get system configuration and environment information",
+        "operationId": "systemInfo",
+        "responses": {
+          "200": {
+            "description": "System information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemInfoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/send-otp": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Send OTP to mobile",
+        "description": "Generate and send 6-digit OTP to the provided mobile number for authentication",
+        "operationId": "sendOtp",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "API key for authentication"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendOtpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests"
+          }
+        }
+      }
+    },
+    "/verify-otp": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Verify OTP and get token",
+        "description": "Verify the OTP and return authentication token for API access",
+        "operationId": "verifyOtp",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "API key for authentication"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyOtpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP verified successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or expired OTP"
+          },
+          "422": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Too many requests"
+          }
+        }
+      }
+    },
+    "/countries": {
+      "get": {
+        "tags": ["Master Data"],
+        "summary": "Get countries list",
+        "description": "Retrieve list of all countries",
+        "operationId": "getCountries",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "API key for authentication"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Countries retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Country"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/check-user": {
+      "post": {
+        "tags": ["User Management"],
+        "summary": "Check user exists",
+        "description": "Check if a user exists by user ID and return their data",
+        "operationId": "checkUser",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserCheckResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": ["User Management"],
+        "summary": "List users",
+        "description": "Get paginated list of users",
+        "operationId": "getUsers",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 15
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/User"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["User Management"],
+        "summary": "Create user",
+        "description": "Create a new user",
+        "operationId": "createUser",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "tags": ["User Management"],
+        "summary": "Get user by ID",
+        "description": "Retrieve a specific user by ID",
+        "operationId": "getUserById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      },
+      "put": {
+        "tags": ["User Management"],
+        "summary": "Update user",
+        "description": "Update a specific user",
+        "operationId": "updateUser",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["User Management"],
+        "summary": "Delete user",
+        "description": "Delete a specific user",
+        "operationId": "deleteUser",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "User deleted successfully"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/users/update-by-mobile": {
+      "post": {
+        "tags": ["User Management"],
+        "summary": "Update user by mobile",
+        "description": "Update user information using mobile number as identifier",
+        "operationId": "updateUserByMobile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserByMobileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/user-json": {
+      "post": {
+        "tags": ["User Management"],
+        "summary": "Store user JSON data",
+        "description": "Store or update complex user data as JSON with image uploads",
+        "operationId": "storeUserJson",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserJsonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User JSON data stored successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserJsonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/candidate/register": {
+      "post": {
+        "tags": ["Candidate Registration"],
+        "summary": "Register candidate",
+        "description": "Complete candidate registration with profile, skills, experience, and preferences",
+        "operationId": "registerCandidate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateRegistrationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Candidate registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateRegistrationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/candidate-profiles": {
+      "get": {
+        "tags": ["Candidate Profiles"],
+        "summary": "List candidate profiles",
+        "description": "Get paginated list of candidate profiles",
+        "operationId": "getCandidateProfiles",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 15
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Candidate profiles retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CandidateProfile"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Candidate Profiles"],
+        "summary": "Create candidate profile",
+        "description": "Create a new candidate profile",
+        "operationId": "createCandidateProfile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCandidateProfileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Candidate profile created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateProfile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/candidate-profiles/{id}": {
+      "get": {
+        "tags": ["Candidate Profiles"],
+        "summary": "Get candidate profile by ID",
+        "description": "Retrieve a specific candidate profile",
+        "operationId": "getCandidateProfileById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Candidate profile retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateProfile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Candidate profile not found"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Candidate Profiles"],
+        "summary": "Update candidate profile",
+        "description": "Update a specific candidate profile",
+        "operationId": "updateCandidateProfile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCandidateProfileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Candidate profile updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateProfile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Candidate profile not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/states": {
+      "get": {
+        "tags": ["Master Data"],
+        "summary": "Get states list",
+        "description": "Retrieve list of all states",
+        "operationId": "getStates",
+        "parameters": [
+          {
+            "name": "country_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filter by country ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "States retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/State"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cities": {
+      "get": {
+        "tags": ["Master Data"],
+        "summary": "Get cities list",
+        "description": "Retrieve list of all cities",
+        "operationId": "getCities",
+        "parameters": [
+          {
+            "name": "state_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filter by state ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cities retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/City"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/skills": {
+      "get": {
+        "tags": ["Master Data"],
+        "summary": "Get skills list",
+        "description": "Retrieve list of all skills",
+        "operationId": "getSkills",
+        "responses": {
+          "200": {
+            "description": "Skills retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Skill"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/skills/{skill}/children": {
+      "get": {
+        "tags": ["Master Data"],
+        "summary": "Get child skills",
+        "description": "Retrieve child skills for a parent skill",
+        "operationId": "getChildSkills",
+        "parameters": [
+          {
+            "name": "skill",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Child skills retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Skill"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/languages": {
+      "get": {
+        "tags": ["Master Data"],
+        "summary": "Get languages list",
+        "description": "Retrieve list of all languages",
+        "operationId": "getLanguages",
+        "responses": {
+          "200": {
+            "description": "Languages retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Language"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/working-statuses": {
+      "get": {
+        "tags": ["Master Data"],
+        "summary": "Get working statuses list",
+        "description": "Retrieve list of all working statuses",
+        "operationId": "getWorkingStatuses",
+        "responses": {
+          "200": {
+            "description": "Working statuses retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkingStatus"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/roles": {
+      "get": {
+        "tags": ["Master Data"],
+        "summary": "Get roles list",
+        "description": "Retrieve list of all roles",
+        "operationId": "getRoles",
+        "responses": {
+          "200": {
+            "description": "Roles retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Role"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/generate-cv": {
+      "post": {
+        "tags": ["Utilities"],
+        "summary": "Generate CV",
+        "description": "Generate CV for a candidate",
+        "operationId": "generateCV",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateCVRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CV generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateCVResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/admin/email": {
+      "post": {
+        "tags": ["Utilities"],
+        "summary": "Send email to admin",
+        "description": "Send email notification to administrator",
+        "operationId": "sendAdminEmail",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminEmailRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/higher-education": {
+      "get": {
+        "tags": ["Master Data"],
+        "summary": "Get higher education data",
+        "description": "Retrieve higher education qualifications",
+        "operationId": "getHigherEducation",
+        "responses": {
+          "200": {
+            "description": "Higher education data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HigherEducation"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/higher-education": {
+      "get": {
+        "tags": ["Master Data"],
+        "summary": "Get higher education data",
+        "description": "Retrieve higher education qualifications",
+        "operationId": "getHigherEducation",
+        "responses": {
+          "200": {
+            "description": "Higher education data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HigherEducation"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/partner-profiles": {
+      "get": {
+        "tags": ["Partner Profiles"],
+        "summary": "List partner profiles",
+        "description": "Get paginated list of partner profiles with search and filter options",
+        "operationId": "getPartnerProfiles",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 15
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search by company name, industry, or user name/email"
+          },
+          {
+            "name": "industry",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by industry"
+          },
+          {
+            "name": "company_size",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by company size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Partner profiles retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PartnerProfile"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Partner Profiles"],
+        "summary": "Create partner profile",
+        "description": "Create a new partner profile with associated user",
+        "operationId": "createPartnerProfile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePartnerProfileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Partner profile created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerProfile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/partner-profiles/{id}": {
+      "get": {
+        "tags": ["Partner Profiles"],
+        "summary": "Get partner profile by ID",
+        "description": "Retrieve a specific partner profile",
+        "operationId": "getPartnerProfileById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Partner profile retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerProfile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Partner profile not found"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Partner Profiles"],
+        "summary": "Update partner profile",
+        "description": "Update a specific partner profile",
+        "operationId": "updatePartnerProfile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePartnerProfileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Partner profile updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerProfile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Partner profile not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Partner Profiles"],
+        "summary": "Delete partner profile",
+        "description": "Delete a specific partner profile and associated user",
+        "operationId": "deletePartnerProfile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Partner profile deleted successfully"
+          },
+          "404": {
+            "description": "Partner profile not found"
+          }
+        }
+      }
+    },
+    "/candidate-skills": {
+      "get": {
+        "tags": ["Candidate Skills"],
+        "summary": "List candidate skills",
+        "description": "Get list of all candidate skill associations",
+        "operationId": "getCandidateSkills",
+        "responses": {
+          "200": {
+            "description": "Candidate skills retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CandidateSkill"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Candidate Skills"],
+        "summary": "Create candidate skill",
+        "description": "Create a new candidate skill association",
+        "operationId": "createCandidateSkill",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCandidateSkillRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Candidate skill created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateSkill"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/candidate-skills/{id}": {
+      "get": {
+        "tags": ["Candidate Skills"],
+        "summary": "Get candidate skill by ID",
+        "description": "Retrieve a specific candidate skill",
+        "operationId": "getCandidateSkillById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Candidate skill retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateSkill"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Candidate skill not found"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Candidate Skills"],
+        "summary": "Update candidate skill",
+        "description": "Update a specific candidate skill",
+        "operationId": "updateCandidateSkill",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCandidateSkillRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Candidate skill updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateSkill"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Candidate skill not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Candidate Skills"],
+        "summary": "Delete candidate skill",
+        "description": "Delete a specific candidate skill",
+        "operationId": "deleteCandidateSkill",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Candidate skill deleted successfully"
+          },
+          "404": {
+            "description": "Candidate skill not found"
+          }
+        }
+      }
+    },
+    "/sms-test": {
+      "post": {
+        "tags": ["Testing"],
+        "summary": "Test SMS functionality",
+        "description": "Test SMS sending functionality",
+        "operationId": "testSms",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsTestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SMS test completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmsTestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "healthy"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "service": {
+            "type": "string",
+            "example": "HR-SolX API"
+          },
+          "version": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "uptime": {
+            "type": "string",
+            "example": "running"
+          }
+        }
+      },
+      "DetailedHealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "unhealthy"]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "service": {
+            "type": "string",
+            "example": "HR-SolX API"
+          },
+          "version": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "environment": {
+            "type": "string",
+            "example": "production"
+          },
+          "checks": {
+            "type": "object",
+            "properties": {
+              "database": {
+                "$ref": "#/components/schemas/HealthCheck"
+              },
+              "cache": {
+                "$ref": "#/components/schemas/HealthCheck"
+              },
+              "storage": {
+                "$ref": "#/components/schemas/HealthCheck"
+              },
+              "queue": {
+                "$ref": "#/components/schemas/HealthCheck"
+              },
+              "redis": {
+                "$ref": "#/components/schemas/HealthCheck"
+              }
+            }
+          }
+        }
+      },
+      "HealthCheck": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "unhealthy", "not_configured"]
+          },
+          "response_time_ms": {
+            "type": "number",
+            "format": "double"
+          },
+          "connection": {
+            "type": "string",
+            "enum": ["active", "failed"]
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "DatabaseStatsResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "healthy"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "database_stats": {
+            "type": "object",
+            "properties": {
+              "users": {
+                "type": "integer",
+                "example": 150
+              },
+              "candidate_profiles": {
+                "type": "integer",
+                "example": 75
+              },
+              "partner_profiles": {
+                "type": "integer",
+                "example": 25
+              },
+              "skills": {
+                "type": "integer",
+                "example": 50
+              },
+              "orders": {
+                "type": "integer",
+                "example": 100
+              },
+              "roles": {
+                "type": "integer",
+                "example": 5
+              },
+              "user_roles": {
+                "type": "integer",
+                "example": 150
+              }
+            }
+          }
+        }
+      },
+      "SystemInfoResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "healthy"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "system": {
+            "type": "object",
+            "properties": {
+              "php_version": {
+                "type": "string",
+                "example": "8.2.0"
+              },
+              "laravel_version": {
+                "type": "string",
+                "example": "11.0.0"
+              },
+              "environment": {
+                "type": "string",
+                "example": "production"
+              },
+              "debug_mode": {
+                "type": "boolean"
+              },
+              "timezone": {
+                "type": "string",
+                "example": "UTC"
+              },
+              "locale": {
+                "type": "string",
+                "example": "en"
+              }
+            }
+          },
+          "database": {
+            "type": "object",
+            "properties": {
+              "driver": {
+                "type": "string",
+                "example": "mysql"
+              },
+              "host": {
+                "type": "string",
+                "example": "localhost"
+              },
+              "database": {
+                "type": "string",
+                "example": "hrsolx"
+              }
+            }
+          }
+        }
+      },
+      "SendOtpRequest": {
+        "type": "object",
+        "required": ["country_code", "mobile"],
+        "properties": {
+          "country_code": {
+            "type": "string",
+            "maxLength": 4,
+            "example": "+91"
+          },
+          "mobile": {
+            "type": "string",
+            "maxLength": 15,
+            "example": "9876543210"
+          }
+        }
+      },
+      "VerifyOtpRequest": {
+        "type": "object",
+        "required": ["country_code", "mobile", "otp"],
+        "properties": {
+          "country_code": {
+            "type": "string",
+            "maxLength": 4,
+            "example": "+91"
+          },
+          "mobile": {
+            "type": "string",
+            "maxLength": 15,
+            "example": "9876543210"
+          },
+          "otp": {
+            "type": "string",
+            "size": 6,
+            "example": "123456"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "OTP verified successfully"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "user": {
+                "$ref": "#/components/schemas/User"
+              },
+              "user_json_data": {
+                "type": "object",
+                "description": "User's additional JSON data"
+              },
+              "candidate_profile": {
+                "$ref": "#/components/schemas/CandidateProfile"
+              },
+              "access_token": {
+                "type": "string",
+                "example": "1|abc123def456..."
+              },
+              "token_type": {
+                "type": "string",
+                "example": "Bearer"
+              }
+            }
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "john@example.com"
+          },
+          "mobile": {
+            "type": "string",
+            "example": "9876543210"
+          },
+          "country_code": {
+            "type": "string",
+            "example": "+91"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CheckUserRequest": {
+        "type": "object",
+        "required": ["user_id"],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "UserCheckResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "User found"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "user": {
+                "type": "object",
+                "description": "User's JSON data"
+              },
+              "user_id": {
+                "type": "integer",
+                "example": 1
+              }
+            }
+          }
+        }
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "required": ["name", "email", "mobile"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "example": "John Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "example": "john@example.com"
+          },
+          "mobile": {
+            "type": "string",
+            "maxLength": 20,
+            "example": "9876543210"
+          },
+          "country_code": {
+            "type": "string",
+            "maxLength": 4,
+            "example": "+91"
+          }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "example": "John Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "example": "john@example.com"
+          },
+          "mobile": {
+            "type": "string",
+            "maxLength": 20,
+            "example": "9876543210"
+          },
+          "country_code": {
+            "type": "string",
+            "maxLength": 4,
+            "example": "+91"
+          }
+        }
+      },
+      "UpdateUserByMobileRequest": {
+        "type": "object",
+        "required": ["mobile"],
+        "properties": {
+          "mobile": {
+            "type": "string",
+            "maxLength": 20,
+            "example": "9876543210"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "example": "John Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "example": "john@example.com"
+          }
+        }
+      },
+      "UserJsonRequest": {
+        "type": "object",
+        "required": ["user_id", "name", "mobile", "email", "json_data"],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "example": "John Doe"
+          },
+          "mobile": {
+            "type": "string",
+            "maxLength": 20,
+            "example": "9876543210"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "example": "john@example.com"
+          },
+          "json_data": {
+            "type": "object",
+            "description": "Complex user data structure"
+          }
+        }
+      },
+      "UserJsonResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "User information updated and JSON data stored successfully"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "json_data": {
+            "type": "object",
+            "description": "Stored JSON data"
+          },
+          "aadhar_image_url": {
+            "type": "string",
+            "nullable": true,
+            "example": "http://example.com/storage/images/aadhar_abc123.jpg"
+          },
+          "image_uri_url": {
+            "type": "string",
+            "nullable": true,
+            "example": "http://example.com/storage/images/image_def456.jpg"
+          }
+        }
+      },
+      "CandidateRegistrationRequest": {
+        "type": "object",
+        "required": ["json_data"],
+        "properties": {
+          "json_data": {
+            "type": "object",
+            "description": "Complete candidate registration data including profile, skills, experience, and preferences"
+          }
+        }
+      },
+      "CandidateRegistrationResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Candidate registered or updated successfully"
+          },
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "candidate_profile_id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "CandidateProfile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "profile_photo": {
+            "type": "string",
+            "nullable": true,
+            "example": "http://example.com/storage/images/profile_abc123.jpg"
+          },
+          "skill_id": {
+            "type": "integer",
+            "example": 5
+          },
+          "address": {
+            "type": "string",
+            "example": "123 Main St, City"
+          },
+          "country_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "state_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "city_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "gender_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "dob": {
+            "type": "string",
+            "format": "date",
+            "example": "1990-01-01"
+          },
+          "total_experience": {
+            "type": "number",
+            "format": "double",
+            "example": 5.5
+          },
+          "current_salary": {
+            "type": "number",
+            "format": "double",
+            "example": 50000
+          },
+          "expected_salary": {
+            "type": "number",
+            "format": "double",
+            "example": 60000
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateCandidateProfileRequest": {
+        "type": "object",
+        "required": ["user_id", "name"],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "profile_photo": {
+            "type": "string",
+            "nullable": true
+          },
+          "skill_id": {
+            "type": "integer"
+          },
+          "address": {
+            "type": "string"
+          },
+          "country_id": {
+            "type": "integer"
+          },
+          "state_id": {
+            "type": "integer"
+          },
+          "city_id": {
+            "type": "integer"
+          }
+        }
+      },
+      "UpdateCandidateProfileRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "profile_photo": {
+            "type": "string",
+            "nullable": true
+          },
+          "skill_id": {
+            "type": "integer"
+          },
+          "address": {
+            "type": "string"
+          },
+          "country_id": {
+            "type": "integer"
+          },
+          "state_id": {
+            "type": "integer"
+          },
+          "city_id": {
+            "type": "integer"
+          }
+        }
+      },
+      "Country": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "India"
+          },
+          "code": {
+            "type": "string",
+            "example": "IN"
+          }
+        }
+      },
+      "State": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Maharashtra"
+          },
+          "country_id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "City": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Mumbai"
+          },
+          "state_id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "Skill": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "PHP Development"
+          },
+          "parent_id": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "Language": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "English"
+          }
+        }
+      },
+      "WorkingStatus": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Currently Working"
+          }
+        }
+      },
+      "Role": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Candidate"
+          }
+        }
+      },
+      "HigherEducation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "title": {
+            "type": "string",
+            "example": "Bachelor of Technology"
+          }
+        }
+      },
+      "GenerateCVRequest": {
+        "type": "object",
+        "required": ["user_id"],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "GenerateCVResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "CV generated successfully"
+          },
+          "cv_url": {
+            "type": "string",
+            "example": "http://example.com/storage/cvs/cv_abc123.pdf"
+          }
+        }
+      },
+      "AdminEmailRequest": {
+        "type": "object",
+        "required": ["subject", "message"],
+        "properties": {
+          "subject": {
+            "type": "string",
+            "example": "User Inquiry"
+          },
+          "message": {
+            "type": "string",
+            "example": "I have a question about the platform"
+          }
+        }
+      },
+      "SmsTestRequest": {
+        "type": "object",
+        "required": ["mobile"],
+        "properties": {
+          "mobile": {
+            "type": "string",
+            "example": "9876543210"
+          },
+          "message": {
+            "type": "string",
+            "example": "Test message"
+          }
+        }
+      },
+      "SmsTestResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Operation completed successfully"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "boolean",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "example": "Validation Error"
+          },
+          "errors": {
+            "type": "object",
+            "description": "Validation error details"
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "current_page": {
+            "type": "integer",
+            "example": 1
+          },
+          "last_page": {
+            "type": "integer",
+            "example": 10
+          },
+          "per_page": {
+            "type": "integer",
+            "example": 15
+          },
+          "total": {
+            "type": "integer",
+            "example": 150
+          }
+        }
+      },
+      "PartnerProfile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "company_name": {
+            "type": "string",
+            "example": "Tech Solutions Inc."
+          },
+          "company_address": {
+            "type": "string",
+            "example": "123 Business Park, Mumbai"
+          },
+          "company_size": {
+            "type": "string",
+            "enum": ["1-10", "11-50", "51-200", "201-500", "500+"],
+            "example": "51-200"
+          },
+          "industry": {
+            "type": "string",
+            "example": "Information Technology"
+          },
+          "website": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "example": "https://techsolutions.com"
+          },
+          "linkedin_url": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "example": "https://linkedin.com/company/techsolutions"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreatePartnerProfileRequest": {
+        "type": "object",
+        "required": ["user_id", "company_name", "company_address", "industry"],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "company_name": {
+            "type": "string",
+            "maxLength": 255,
+            "example": "Tech Solutions Inc."
+          },
+          "company_address": {
+            "type": "string",
+            "maxLength": 500,
+            "example": "123 Business Park, Mumbai"
+          },
+          "company_size": {
+            "type": "string",
+            "enum": ["1-10", "11-50", "51-200", "201-500", "500+"],
+            "example": "51-200"
+          },
+          "industry": {
+            "type": "string",
+            "example": "Information Technology"
+          },
+          "website": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://techsolutions.com"
+          },
+          "linkedin_url": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://linkedin.com/company/techsolutions"
+          }
+        }
+      },
+      "UpdatePartnerProfileRequest": {
+        "type": "object",
+        "properties": {
+          "company_name": {
+            "type": "string",
+            "maxLength": 255,
+            "example": "Tech Solutions Inc."
+          },
+          "company_address": {
+            "type": "string",
+            "maxLength": 500,
+            "example": "123 Business Park, Mumbai"
+          },
+          "company_size": {
+            "type": "string",
+            "enum": ["1-10", "11-50", "51-200", "201-500", "500+"],
+            "example": "51-200"
+          },
+          "industry": {
+            "type": "string",
+            "example": "Information Technology"
+          },
+          "website": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://techsolutions.com"
+          },
+          "linkedin_url": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://linkedin.com/company/techsolutions"
+          }
+        }
+      },
+      "CandidateSkill": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "candidate_profile_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "skill_id": {
+            "type": "integer",
+            "example": 5
+          },
+          "skill": {
+            "$ref": "#/components/schemas/Skill"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateCandidateSkillRequest": {
+        "type": "object",
+        "required": ["candidate_profile_id", "skill_id"],
+        "properties": {
+          "candidate_profile_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "skill_id": {
+            "type": "integer",
+            "example": 5
+          }
+        }
+      },
+      "UpdateCandidateSkillRequest": {
+        "type": "object",
+        "properties": {
+          "candidate_profile_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "skill_id": {
+            "type": "integer",
+            "example": 5
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Health Check",
+      "description": "API health monitoring endpoints"
+    },
+    {
+      "name": "Authentication",
+      "description": "OTP-based authentication endpoints"
+    },
+    {
+      "name": "User Management",
+      "description": "User CRUD operations and data management"
+    },
+    {
+      "name": "Candidate Registration",
+      "description": "Candidate registration and onboarding"
+    },
+    {
+      "name": "Candidate Profiles",
+      "description": "Candidate profile management"
+    },
+    {
+      "name": "Master Data",
+      "description": "Reference data like countries, states, skills, etc."
+    },
+    {
+      "name": "Utilities",
+      "description": "Utility endpoints like CV generation, email sending"
+    },
+    {
+      "name": "Partner Profiles",
+      "description": "Partner profile management endpoints"
+    },
+    {
+      "name": "Candidate Skills",
+      "description": "Candidate skill association endpoints"
+    },
+    {
+      "name": "Testing",
+      "description": "Testing and debugging endpoints"
+    }
+  ]
+}
