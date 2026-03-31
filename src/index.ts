@@ -2,6 +2,7 @@ import express from "express";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Request, Response } from "express";
+import { authenticate } from "./middleware/auth.js";
 
 import { registerEchoCapabilities } from "./tools/echo.js";
 import { registerHealthTools } from "./tools/health.js";
@@ -23,7 +24,7 @@ registerHealthTools(server);
 registerReferenceTools(server);
 registerUserTools(server);
 
-app.post('/mcp', async (req: Request, res: Response) => {
+app.post('/mcp', authenticate, async (req: Request, res: Response) => {
   try {
     console.log('Received request:', JSON.stringify(req.body, null, 2));
     
