@@ -16,6 +16,27 @@ This server acts as a bridge between AI models (Claude, GPT, etc.) and the HR So
 - **Rate Limiting** — IP-based request throttling
 - **Error Handling** — Typed errors with contextual messages
 
+## System Architecture
+
+```mermaid
+graph LR
+    AI["AI Client\n(Claude, GPT)"] -->|"POST /mcp\nJSON-RPC 2.0"| Express["Express Server\n(MCP Protocol)"]
+    Express -->|"fetch"| API["HR API\napi.hr-solx-mobile.com"]
+    API -->|"JSON Response"| Express
+    Express -->|"SSE Stream"| AI
+
+    subgraph Middleware
+        Express
+    end
+
+    classDef ai fill:#e1f5fe,stroke:#01579b
+    classDef server fill:#fff3e0,stroke:#e65100
+    classDef api fill:#e8f5e9,stroke:#2e7d32
+    class AI ai
+    class Express server
+    class API api
+```
+
 ## Quick Start
 
 ```bash
@@ -160,13 +181,22 @@ curl -X POST http://localhost:4000/mcp \
 └── tsconfig.json
 ```
 
-## Architecture
+## Module Dependencies
 
-```
-AI Client ──POST /mcp──▶ Express Server ──fetch──▶ HR API
-                  │                              │
-            JSON-RPC 2.0                    REST endpoints
-            (MCP Protocol)                  (/users, /health, etc)
+```mermaid
+graph TD
+    Index["src/index.ts\n(Server Entry)"] --> Types["src/types/\n(api.ts, errors.ts)"]
+    Index --> Client["src/client/\n(api-client.ts)"]
+    Index --> Tools["src/tools/\n(echo, health, reference, users)"]
+    Index --> Middleware["src/middleware/\n(auth, rate-limit)"]
+    Tools --> Client
+    Tools --> Types
+    Client --> Types
+
+    classDef entry fill:#fff3e0,stroke:#e65100
+    classDef module fill:#e3f2fd,stroke:#1565c0
+    class Index entry
+    class Types,Client,Tools,Middleware module
 ```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full details.

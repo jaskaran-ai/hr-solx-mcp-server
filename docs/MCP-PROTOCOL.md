@@ -9,6 +9,24 @@ The **Model Context Protocol (MCP)** is an open standard that allows AI models t
 - Access resources
 - Use predefined prompts
 
+## Protocol Overview
+
+```mermaid
+graph LR
+    Client["AI Client"] -->|"initialize"| Server["MCP Server"]
+    Server -->|"capabilities"| Client
+    Client -->|"tools/list"| Server
+    Server -->|"tool definitions"| Client
+    Client -->|"tools/call"| Server
+    Server -->|"execute tool"| Server
+    Server -->|"result content"| Client
+
+    classDef client fill:#e1f5fe,stroke:#01579b
+    classDef server fill:#fff3e0,stroke:#e65100
+    class Client client
+    class Server server
+```
+
 ## Protocol Basics
 
 ### JSON-RPC 2.0
@@ -61,6 +79,24 @@ All MCP communication uses [JSON-RPC 2.0](https://www.jsonrpc.org/specification)
 ```
 
 ## MCP Primitives
+
+```mermaid
+graph TD
+    MCP["MCP Primitives"] --> Tools["Tools\nActions AI can invoke"]
+    MCP --> Resources["Resources\nData AI can read via URI"]
+    MCP --> Prompts["Prompts\nPre-built message templates"]
+
+    Tools --> ToolExample["tools/call\necho, get-users, create-user"]
+    Resources --> ResourceExample["resources/read\necho://HelloWorld"]
+    Prompts --> PromptExample["prompts/get\necho prompt template"]
+
+    classDef root fill:#fff3e0,stroke:#e65100
+    classDef primitive fill:#e3f2fd,stroke:#1565c0
+    classDef example fill:#e8f5e9,stroke:#2e7d32
+    class MCP root
+    class Tools,Resources,Prompts primitive
+    class ToolExample,ResourceExample,PromptExample example
+```
 
 ### 1. Tools
 
@@ -156,13 +192,23 @@ This project uses **Streamable HTTP Transport** — the modern MCP transport met
 
 ### How It Works
 
-```
-Client ──POST /mcp──▶ Server
-                      │
-                      ├── Creates new StreamableHTTPServerTransport
-                      ├── Connects transport to MCP server
-                      ├── Handles request through transport
-                      └── Streams SSE response back
+```mermaid
+sequenceDiagram
+    participant Client as AI Client
+    participant Express as Express Server
+    participant Transport as StreamableHTTP<br/>Transport
+    participant MCP as MCP Server
+    participant Tool as Tool Handler
+
+    Client->>Express: POST /mcp (JSON-RPC)
+    Express->>Transport: Create new transport instance
+    Express->>MCP: Connect transport
+    MCP->>Tool: Route to handler
+    Tool-->>MCP: Execute + return result
+    MCP-->>Transport: Format response
+    Transport-->>Client: SSE stream (data: {...})
+    Client-->>Express: Disconnect
+    Express->>Transport: transport.close()
 ```
 
 ### Key Characteristics
