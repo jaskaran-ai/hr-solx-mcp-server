@@ -1,0 +1,21 @@
+services:
+  mcp-server:
+    build:
+      context: .
+      target: build
+    container_name: hr-solx-mcp-server-dev
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./src:/app/src:cached
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - DEBUG=mcp:*
+    command: npx nodemon --watch src --ext ts,js --exec node --loader ts-node/esm src/index.ts
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
