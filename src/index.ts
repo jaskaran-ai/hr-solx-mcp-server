@@ -13,6 +13,7 @@ process.env.DEBUG = "mcp:*";
 
 const app = express();
 app.use(express.json());
+app.use('/mcp', rateLimit);
 
 const server = new McpServer({
   name: "Echo",
