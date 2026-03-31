@@ -2,118 +2,98 @@
 
 ## Current Security Posture
 
-**This server has NO authentication or authorization.** Anyone who can reach the server can:
+This server implements multiple layers of security:
 
-- Discover all available tools
-- Invoke any tool with arbitrary parameters
-- Access all upstream API endpoints
-- Potentially create/modify data via POST tools
+- **API Key Authentication** — Protects the MCP endpoint via `X-API-Key` header
+- **Upstream API Authentication** — Bearer token for HR API calls
+- **Rate Limiting** — IP-based request throttling
+- **Typed Error Handling** — Controlled error messages without leaking internals
+- **Container Security** — Non-root user, minimal base image, no dev dependencies in production
 
-## Vulnerabilities
+## Security Features
 
-### 1. Open MCP Endpoint
-- **Risk**: High
-- **Location**: `src/index.ts:53-82`
-- **Issue**: No authentication middleware on `/mcp` route
-- **Impact**: Unauthorized tool execution
+### 1. API Key Authentication
+- **Location**: `src/middleware/auth.ts`
+- **Mechanism**: Validates `X-API-Key` header against `MCP_API_KEY` env var
+- **Behavior**: Returns JSON-RPC 401 error for invalid/missing keys
+- **Graceful fallback**: Passes through when `MCP_API_KEY` is not set (dev mode)
 
-### 2. Unprotected API Calls
-- **Risk**: High
-- **Location**: `src/index.ts:118-137`
-- **Issue**: No auth headers sent to upstream API
-- **Impact**: API calls made without credentials
+### 2. Upstream API Authentication
+- **Location**: `src/client/api-client.ts`
+- **Mechanism**: Adds `Authorization: Bearer <token>` header when `API_TOKEN` is set
+- **Impact**: All upstream API calls are authenticated
 
-```typescript
-const headers = {
-  "Content-Type": "application/json",
-  // Missing: Authorization header
-};
-```
+### 3. Rate Limiting
+- **Location**: `src/middleware/rate-limit.ts`
+- **Mechanism**: In-memory IP-based counter with configurable window
+- **Default**: 100 requests per 15 minutes
+- **Headers**: Returns `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+- **Response**: JSON-RPC 429 error when limit exceeded
 
-### 3. No Rate Limiting
-- **Risk**: Medium
-- **Issue**: No request throttling
-- **Impact**: Potential DoS or API abuse
+### 4. Container Security
+- **Non-root user**: Production image runs as `nodejs:1001`
+- **Minimal base**: Alpine Linux reduces attack surface (~180MB final image)
+- **No dev dependencies**: Production image excludes ts-node, nodemon, typescript
+- **Multi-stage build**: Source code and build tools not present in final image
+- **Health check**: Automatic container health monitoring
 
-### 4. No Input Sanitization
+## Remaining Vulnerabilities
+
+### 1. No Input Sanitization
 - **Risk**: Medium
 - **Issue**: Zod validates types but not malicious content
 - **Impact**: Potential injection attacks
+- **Mitigation**: Add input validation middleware
 
-### 5. Verbose Error Messages
+### 2. Verbose Request Logging
 - **Risk**: Low
-- **Location**: `src/index.ts:56`
+- **Location**: `src/index.ts`
 - **Issue**: Request bodies logged to console
 - **Impact**: Sensitive data in logs
+- **Mitigation**: Sanitize logs before output
 
-```typescript
-console.log('Received request:', JSON.stringify(req.body, null, 2));
-```
+### 3. In-Memory Rate Limit Store
+- **Risk**: Low
+- **Issue**: Rate limits reset on container restart
+- **Impact**: Temporary bypass on restart
+- **Mitigation**: Use Redis for distributed rate limiting
 
-## Recommended Fixes
-
-### 1. Add API Key Authentication
-
-```typescript
-import type { Request, Response, NextFunction } from "express";
-
-function authenticate(req: Request, res: Response, next: NextFunction) {
-  const apiKey = req.headers['x-api-key'];
-  
-  if (!apiKey || apiKey !== process.env.MCP_API_KEY) {
-    return res.status(401).json({
-      jsonrpc: '2.0',
-      error: { code: -32000, message: 'Unauthorized' },
-      id: null,
-    });
-  }
-  
-  next();
-}
-
-app.post('/mcp', authenticate, async (req: Request, res: Response) => {
-  // ... existing code
-});
-```
-
-### 2. Add Upstream API Authentication
-
-```typescript
-async function makeAPIRequest<T>(url: string, method: string = 'GET', body?: any): Promise<T | null> {
-  const headers = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${process.env.API_TOKEN}`,
-  };
-  // ... rest of function
-}
-```
-
-### 3. Add Rate Limiting
+## Environment Variables for Security
 
 ```bash
-npm install express-rate-limit
+# Required in production
+MCP_API_KEY=your-secret-key-here
+API_TOKEN=upstream-api-token-here
+NODE_ENV=production
+
+# Optional
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
 ```
 
+## Production Checklist
+
+- [x] API key authentication implemented
+- [x] Upstream API credentials support
+- [x] Rate limiting enabled
+- [ ] Sanitize log output
+- [ ] Validate all incoming requests with JSON-RPC schema
+- [x] Use non-root user in Docker
+- [ ] Use HTTPS in production (reverse proxy)
+- [ ] Set secure CORS headers
+- [ ] Add request timeout handling
+- [x] Implement proper error handling
+- [ ] Add monitoring and alerting
+- [ ] Rotate API keys regularly
+- [ ] Audit tool permissions
+- [ ] Add request ID tracing
+- [ ] Implement audit logging
+
+## Recommended Improvements
+
+### 1. Sanitize Logs
+
 ```typescript
-import rateLimit from 'express-rate-limit';
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: {
-    jsonrpc: '2.0',
-    error: { code: -32000, message: 'Too many requests' },
-    id: null,
-  },
-});
-
-app.use('/mcp', limiter);
-```
-
-### 4. Sanitize Logs
-
-```typescript
-// Remove sensitive data from logs
 function sanitizeLog(obj: unknown): unknown {
   if (typeof obj !== 'object' || obj === null) return obj;
   const sanitized = { ...obj as Record<string, unknown> };
@@ -122,11 +102,9 @@ function sanitizeLog(obj: unknown): unknown {
   delete sanitized.apiKey;
   return sanitized;
 }
-
-console.log('Received request:', JSON.stringify(sanitizeLog(req.body), null, 2));
 ```
 
-### 5. Add Request Validation
+### 2. Add Request Validation
 
 ```typescript
 import { z } from "zod";
@@ -151,30 +129,27 @@ app.post('/mcp', async (req: Request, res: Response) => {
 });
 ```
 
-## Environment Variables for Security
+### 3. Add HTTPS via Reverse Proxy
 
-```bash
-# Required in production
-MCP_API_KEY=your-secret-key-here
-API_TOKEN=upstream-api-token-here
-NODE_ENV=production
+Use nginx or Caddy as a reverse proxy:
 
-# Optional
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
+```nginx
+server {
+    listen 443 ssl;
+    server_name mcp.example.com;
+
+    location /mcp {
+        proxy_pass http://localhost:4000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
 ```
 
-## Production Checklist
+### 4. Distributed Rate Limiting
 
-- [ ] Add API key authentication
-- [ ] Add upstream API credentials
-- [ ] Enable rate limiting
-- [ ] Sanitize log output
-- [ ] Validate all incoming requests
-- [ ] Use HTTPS in production
-- [ ] Set secure CORS headers
-- [ ] Add request timeout handling
-- [ ] Implement proper error handling
-- [ ] Add monitoring and alerting
-- [ ] Rotate API keys regularly
-- [ ] Audit tool permissions
+For multi-instance deployments, use Redis:
+
+```bash
+npm install express-rate-limit rate-limit-redis
+```

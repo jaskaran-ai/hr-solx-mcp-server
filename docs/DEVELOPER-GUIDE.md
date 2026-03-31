@@ -12,6 +12,53 @@ npm run dev
 # Server runs at http://localhost:4000/mcp
 ```
 
+## Running with Docker
+
+### Production
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Start in background
+docker compose up -d
+
+# View logs
+docker compose logs -f
+```
+
+### Development (Hot-Reload)
+
+```bash
+# Uses docker-compose.dev.yml with volume mounts and nodemon
+docker compose -f docker-compose.dev.yml up
+```
+
+Features:
+- **Volume mounts** — `./src:/app/src` for live editing
+- **Hot-reload** — Nodemon watches for file changes automatically
+- **Debug logging** — Enabled by default (`DEBUG=mcp:*`)
+
+### Common Docker Commands
+
+```bash
+# View logs
+docker compose logs -f
+
+# Rebuild after dependency changes
+docker compose up -d --build
+
+# Stop containers
+docker compose down
+
+# Exec into running container
+docker compose exec mcp-server sh
+
+# Development mode
+docker compose -f docker-compose.dev.yml up
+docker compose -f docker-compose.dev.yml down
+```
+
 ## Project Structure
 
 ```
@@ -24,19 +71,33 @@ mcp-server/
 │   ├── SECURITY.md
 │   └── TROUBLESHOOTING.md
 ├── src/
-│   ├── index.ts             # Main server (all code here)
-│   ├── echo_client.js       # Test client for echo tool
-│   └── get_capabilities.ts  # Test client for capabilities
+│   ├── index.ts             # Server entry point
+│   ├── types/
+│   │   ├── api.ts           # API response interfaces
+│   │   └── errors.ts        # Custom error types
+│   ├── client/
+│   │   └── api-client.ts    # Upstream API client
+│   ├── tools/
+│   │   ├── echo.ts          # Echo tool/resource/prompt
+│   │   ├── health.ts        # Health check tools
+│   │   ├── reference.ts     # Reference data tools
+│   │   └── users.ts         # User management tools
+│   └── middleware/
+│       ├── auth.ts          # API key authentication
+│       └── rate-limit.ts    # Rate limiting
+├── .env.example             # Environment template
+├── Dockerfile               # Multi-stage production build
+├── docker-compose.yml       # Production orchestration
+├── docker-compose.dev.yml   # Development with hot-reload
 ├── package.json
-├── tsconfig.json
-└── README.md
+└── tsconfig.json
 ```
 
 ## Adding a New Tool
 
 ### Step 1: Define TypeScript Interface
 
-Add interface near other interfaces (~line 139):
+Add interface to `src/types/api.ts`:
 
 ```typescript
 interface Department {
@@ -48,14 +109,14 @@ interface Department {
 
 ### Step 2: Register the Tool
 
-Add tool registration after existing tools (~line 349):
+Add tool registration in the appropriate module under `src/tools/`:
 
 ```typescript
-// @ts-ignore
+// In src/tools/reference.ts (or create a new module)
 server.tool(
   "get-departments",
   "Get list of departments",
-  {},  // Empty object = no parameters
+  {},
   async () => {
     const departments = await makeAPIRequest<Department[]>(
       `${API_URL}/departments`
@@ -68,10 +129,20 @@ server.tool(
 );
 ```
 
+### Step 3: Import and Register in index.ts
+
+If you created a new module, import and register it in `src/index.ts`:
+
+```typescript
+import { registerDepartmentTools } from "./tools/departments.js";
+
+// In the server setup section:
+registerDepartmentTools(server);
+```
+
 ### Tool with Parameters
 
 ```typescript
-// @ts-ignore
 server.tool(
   "get-user-by-id",
   "Get a specific user by ID",
@@ -93,7 +164,6 @@ server.tool(
 ### Tool with POST Request
 
 ```typescript
-// @ts-ignore
 server.tool(
   "update-user",
   "Update an existing user",
@@ -211,6 +281,10 @@ Received request: {
 |----------|---------|-------------|
 | `MCP_SERVER_PORT` | `4000` | Port for MCP server |
 | `MCP_API_URL` | `https://api.hr-solx-mobile.com` | Upstream API URL |
+| `MCP_API_KEY` | — | API key for MCP endpoint auth |
+| `API_TOKEN` | — | Bearer token for upstream API |
+| `RATE_LIMIT_WINDOW_MS` | `900000` | Rate limit window (15 min) |
+| `RATE_LIMIT_MAX_REQUESTS` | `100` | Max requests per window |
 | `DEBUG` | `mcp:*` | Debug logging filter |
 
 ### Setting Variables
@@ -229,11 +303,13 @@ $env:MCP_API_URL = "https://api.example.com"
 
 ### API Request Helper
 
+Located in `src/client/api-client.ts`:
+
 ```typescript
 async function makeAPIRequest<T>(
   url: string,
   method: string = 'GET',
-  body?: any
+  body?: unknown
 ): Promise<T | null> {
   // Returns typed response or null on error
 }
@@ -253,25 +329,38 @@ All tools return:
 }
 ```
 
-## Current Limitations
+### Error Handling
 
-- Single file architecture (harder to maintain)
-- No authentication
-- No pagination support
-- Generic error messages
-- `@ts-ignore` used throughout (SDK type issues)
-- No request validation middleware
-- No rate limiting
+Tools use `try/catch` with `formatToolError()` helper:
+
+```typescript
+try {
+  const data = await makeAPIRequest<SomeType>(`${API_URL}/endpoint`);
+  if (!data) {
+    return { content: [{ type: "text", text: "Descriptive error message." }] };
+  }
+  return { content: [{ type: "text", text: `Success: ${data}` }] };
+} catch (error) {
+  return { content: [{ type: "text", text: formatToolError("tool-name", error) }] };
+}
+```
+
+## Current Architecture
+
+The codebase uses a **modular architecture**:
+- **`src/types/`** — TypeScript interfaces and custom error types
+- **`src/client/`** — Upstream API client
+- **`src/tools/`** — Tool modules organized by domain
+- **`src/middleware/`** — Auth and rate limiting middleware
+- **`src/index.ts`** — Server entry point, imports and registers all modules
 
 ## Recommended Improvements
 
-1. Split into modules (tools, api-client, types, server)
-2. Add authentication middleware
-3. Implement proper error handling with context
-4. Add pagination parameters to list tools
-5. Fix TypeScript issues (remove `@ts-ignore`)
-6. Add request logging middleware
-7. Implement rate limiting
-8. Add input validation beyond Zod schemas
-9. Create automated tests
-10. Add OpenAPI/Swagger documentation
+1. Add pagination parameters to list tools
+2. Create automated tests (unit + integration)
+3. Add OpenAPI/Swagger documentation
+4. Add request validation middleware
+5. Implement structured logging (e.g., Pino)
+6. Add metrics/monitoring (Prometheus)
+7. Support streaming tool responses
+8. Add tool caching for reference data
