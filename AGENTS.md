@@ -1,73 +1,97 @@
 # AGENTS.md
 
 ## Project Overview
+This repository contains a Model Context Protocol (MCP) server built with **Express.js** and **TypeScript**. It implements the MCP **Streamable HTTP transport**, allowing AI models (like Claude or GPT) to interact with HR Solx API endpoints as tools.
 
-Model Context Protocol (MCP) server built with Express.js and TypeScript. Implements the MCP Streamable HTTP transport for AI tool interactions.
+## Setup & Environment
+- **Node Version**: >= 18.0.0
+- **Environment**: Copy `.env.example` to `.env` and configure:
+  - `MCP_API_URL`: Upstream HR API URL.
+  - `MCP_API_KEY`: Key to protect the `/mcp` endpoint.
+  - `API_TOKEN`: Bearer token for upstream API authentication.
 
 ## Commands
 
-### Development
+### Development & Build
 ```bash
-npm run dev          # Start with ts-node loader
-npm run dev:watch    # Start with nodemon auto-reload
+npm install          # Install dependencies
+npm run dev          # Start server with ts-node (auto-reloads via nodemon)
 npm run build        # Compile TypeScript to dist/
-npm run start        # Run compiled dist/index.js
+npm run start        # Run compiled server from dist/
 ```
 
 ### Testing & Linting
-No test framework or linter is currently configured. Consider adding:
-- `vitest` or `jest` for testing
-- `eslint` for linting
-- `prettier` for formatting
+Currently, no test framework or linter is configured. **Recommended additions**:
+- **Testing**: `vitest` or `jest`.
+- **Linting**: `eslint` with TypeScript support.
+- **Formatting**: `prettier`.
 
-## Code Style
+**Running a single test (Recommended pattern)**:
+If `vitest` is added, use: `npx vitest src/tools/users.test.ts`
 
-### Imports
-- Use `.js` extensions for local imports (ESM requirement): `import { x } from "./module.js"`
-- Group imports: external packages first, then local imports
-- Use `type` imports for TypeScript types: `import type { Request } from "express"`
+## Directory Structure
+- `src/index.ts`: Entry point. Express app setup, middleware, and MCP server initialization.
+- `src/tools/`: Tool registration modules (e.g., `users.ts`, `health.ts`).
+- `src/middleware/`: Express middleware for auth and rate limiting.
+- `src/client/`: Upstream API client (`api-client.ts`).
+- `src/types/`: TypeScript interfaces and custom error classes.
+- `docs/`: Comprehensive documentation for architecture, protocol, and tools.
 
-### TypeScript
-- `strict: true` enabled in tsconfig.json
-- Target: ES2017, Module: ESNext, ModuleResolution: bundler
-- Path alias: `@/*` maps to `./src/*`
-- Avoid `@ts-ignore` comments; fix type issues properly
-- Use interfaces for API types, classes for custom errors
+## Code Style & Conventions
 
-### Naming Conventions
-- Files: kebab-case (`api-client.ts`, `rate-limit.ts`)
-- Functions: camelCase (`registerEchoCapabilities`, `makeAPIRequest`)
-- Types/Interfaces: PascalCase (`HealthCheckResponse`, `APIError`)
-- Constants: UPPER_SNAKE_CASE (`API_URL`, `WINDOW_MS`)
+### 1. TypeScript & ESM
+- **Strict Mode**: `strict: true` is enabled in `tsconfig.json`.
+- **ESM Imports**: You **MUST** use `.js` extensions for local imports (e.g., `import { x } from "./utils.js"`). This is a Node.js ESM requirement.
+- **Path Aliases**: Use `@/*` for absolute-like paths mapping to `./src/*`.
+- **Type Imports**: Prefer `import type { ... }` for TypeScript-only entities.
 
-### Error Handling
-- Custom error classes in `src/types/errors.ts` (APIError, NetworkError, ToolError)
-- MCP JSON-RPC error format for API responses:
+### 2. Naming Conventions
+- **Files**: `kebab-case.ts` (e.g., `api-client.ts`, `user-management.ts`).
+- **Functions**: `camelCase` (e.g., `registerUserTools`, `makeAPIRequest`).
+- **Interfaces/Types**: `PascalCase` (e.g., `UserResponse`, `ToolConfig`).
+- **Constants**: `UPPER_SNAKE_CASE` (e.g., `DEFAULT_PORT`, `API_RETRY_LIMIT`).
+
+### 3. Tool Registration Pattern
+Tools should be modularized in `src/tools/` and registered using a standard function:
+```typescript
+export function registerExampleTools(server: McpServer) {
+  server.tool(
+    "tool-name",
+    "Description of what the tool does",
+    { param: z.string().describe("Param description") },
+    async ({ param }) => {
+      // Implementation
+      return { content: [{ type: "text", text: "Result" }] };
+    }
+  );
+}
+```
+*Note: Use `zod` for input schema validation.*
+
+### 4. Error Handling
+- Use custom error classes from `src/types/errors.ts`: `APIError`, `NetworkError`, `ToolError`.
+- MCP responses should follow the JSON-RPC 2.0 error format:
   ```typescript
-  { jsonrpc: "2.0", error: { code: -32603, message: "..." }, id: null }
+  { 
+    jsonrpc: "2.0", 
+    error: { code: -32603, message: "Contextual message" }, 
+    id: null 
+  }
   ```
-- Use try/catch with console.error for logging
-- Return null on API failures rather than throwing
+- Catch errors at the top-level route in `index.ts` to prevent server crashes.
+- Prefer returning `null` or a descriptive error object from low-level clients rather than throwing, unless it's an unrecoverable state.
 
-### Architecture
-```
-src/
-├── index.ts           # Express app, MCP server setup, routes
-├── tools/             # MCP tool registrations (echo, health, users, reference)
-├── middleware/        # Express middleware (auth, rate-limit)
-├── client/            # External API client
-└── types/             # TypeScript types and error classes
-```
+### 5. API Client
+- Always use `src/client/api-client.ts` for upstream requests.
+- Pass generic types to `makeAPIRequest<T>` to ensure type safety for responses.
 
-### Patterns
-- Tool registration: `registerXxxTools(server: McpServer)` functions
-- Zod for input validation schemas
-- Environment variables for configuration (port, API keys, URLs)
-- JSON-RPC 2.0 response format for all MCP communications
+## Best Practices for AI Agents
 
-### Environment Variables
-- `MCP_SERVER_PORT` - Server port (default: 4000)
-- `MCP_API_KEY` - Authentication key
-- `MCP_API_URL` - Upstream API URL
-- `RATE_LIMIT_WINDOW_MS` - Rate limit window
-- `RATE_LIMIT_MAX_REQUESTS` - Max requests per window
+1. **Self-Correction**: If a tool call fails, check the logs (the server uses `DEBUG=mcp:*`).
+2. **Security**: NEVER commit `.env` files or hardcode secrets. Use the provided environment variable pattern.
+3. **Documentation**: When adding a new tool, update `docs/TOOLS-REFERENCE.md` and the `README.md` catalog.
+4. **Validation**: Always use Zod schemas for tool inputs to provide clear feedback to the calling model.
+5. **State Management**: The server is designed to be stateless. Avoid using global variables to store request-specific data.
+
+## Cursor & Copilot Rules
+No specific `.cursorrules` or `.github/copilot-instructions.md` are defined for this project. Follow the general standards outlined above.
